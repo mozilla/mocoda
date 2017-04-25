@@ -1,0 +1,10 @@
+CC="clang-4.0 -fplugin=/tmp/libmocoda.so"
+CXX="clang++-4.0 -fplugin=/tmp/libmocoda.so"
+CXXFLAGS="-w -O0 -g0"
+CCFLAGS="-w -O0 -g0"
+
+mk_add_options MOZ_MAKE_FLAGS="-j9"
+mk_add_options AUTOCLOBBER=1
+ac_add_options --disable-debug
+ac_add_options --disable-optimize
+ac_add_options --disable-debug-symbols
