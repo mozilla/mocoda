@@ -1,6 +1,6 @@
 CXXFLAGS := -fPIC -O2 -std=c++11
-LDFLAGS := -lsqlite3 -L/usr/lib/llvm-4.0/lib -lLLVM
-INC := -I/usr/lib/llvm-4.0/include
+LDFLAGS ?= -lsqlite3 -L/usr/lib/llvm-4.0/lib -lLLVM
+INC ?= -I/usr/lib/llvm-4.0/include
 SRCS = plugin.cpp DB.cpp utils.cpp info.cpp
 
 build: libmocoda.so
