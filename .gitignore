@@ -3,3 +3,6 @@
 *.pyo
 *.o
 *.so
+build/
+dist/
+mozilla_mocoda.egg-info/
