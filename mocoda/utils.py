@@ -9,8 +9,9 @@ import zlib
 
 def compress(data):
     cdata = json.dumps(data, separators=[',', ':'])
-    cdata = zlib.compress(cdata, 9)
+    cdata = zlib.compress(str.encode(cdata), 9)
     cdata = base64.b64encode(cdata)
+    cdata = cdata.decode('ascii')
 
     return cdata
 
@@ -18,6 +19,7 @@ def compress(data):
 def decompress(data):
     cdata = base64.b64decode(data)
     cdata = zlib.decompress(cdata)
+    cdata = cdata.decode('ascii')
     cdata = json.loads(cdata)
 
     return cdata
