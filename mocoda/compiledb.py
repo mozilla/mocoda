@@ -8,20 +8,40 @@ import shutil
 import tempfile
 import hglib
 import json
+import subprocess
+from distutils.spawn import find_executable
+import logging
 from . import finalizedb
 from . import mergedb
 from . import utils
 
+logger = logging.getLogger(__name__)
 
-def get_mach(root):
-    mach_path = os.path.join(root, 'build/mach_bootstrap.py')
-    import imp
-    with open(mach_path, 'r') as fh:
-        imp.load_module('mach_bootstrap', fh, mach_path,
-                        ('.py', 'r', imp.PY_SOURCE))
-    import mach_bootstrap
-    return mach_bootstrap.bootstrap(root)
 
+def mach(root, mach_args, check_exit=True):
+    """
+    Run a command in the repo through subprocess
+    Supports optional gecko-env
+    """
+    assert isinstance(mach_args, list)
+    cmd = []
+
+    # Use gecko env when available
+    gecko_env = find_executable('gecko-env')
+    if gecko_env is not None:
+        cmd = [gecko_env, ]
+
+    # Add local mach to required command
+    cmd += ['./mach', ] + mach_args
+    logger.debug('Running command {}'.format(' '.join(cmd)))
+
+    # Run command with env
+    proc = subprocess.Popen(cmd, cwd=root)
+    exit = proc.wait()
+    if exit != 0 and check_exit is True:
+        raise Exception('Invalid exit code for command {}: {}'.format(cmd, exit))  # NOQA
+
+    return exit
 
 def env(restore=False, __env=[]):
     if restore:
@@ -78,17 +98,15 @@ def post():
 
 
 def compile_tree(root, rev, output, db):
-    r = get_mach(root).run(['build', 'pre-export'])
+    r = mach(root, ['build', 'pre-export'], check_exit=False)
     if r != 0:
-        r = get_mach(root).run(['configure'])
-        if r != 0:
-            raise '\'mach configure\' failed.'
-        get_mach(root).run(['build', 'pre-export'])
+        mach(root, ['configure'])
+        mach(root, ['build', 'pre-export'])
 
-    get_mach(root).run(['build', 'export'])
+    mach(root, ['build', 'export'])
 
     os.environ['MOCODA_DATABASE'] = db
-    get_mach(root).run(['build', 'compile'])
+    mach(root, ['build', 'compile'])
 
     return finalizedb.mk_data(db, rev, output, compress=True)
 
@@ -118,9 +136,10 @@ def update(rev_start=None, rev_end=None, clobber=False, update=False):
     output_file = ''
     for i, log in enumerate(reversed(logs)):
         if clobber and i == 0:
-            get_mach(root).run(['clobber'])
+            mach(root, ['clobber'])
 
         _, rev, _, _, author, desc, _ = log
+        logger.info('Compile for revision {}'.format(rev))
         client.update(rev=rev)
 
         if output_dir:
@@ -151,7 +170,7 @@ def prepare(rev=None):
         client.update(rev=rev)
     else:
         rev = client.log(limit=1)[0][1]
-    get_mach(root).run(['clobber'])
+    mach(root, ['clobber'])
     db = os.path.join(tmpdir, 'database_{}.sqlite'.format(rev))
     data = compile_tree(root, rev, '', db)
     put_data_in_cache(data)
