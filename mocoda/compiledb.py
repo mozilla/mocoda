@@ -8,6 +8,7 @@ import tempfile
 import hglib
 import json
 import subprocess
+import whatthepatch
 from distutils.spawn import find_executable
 import logging
 from . import finalizedb
@@ -87,6 +88,14 @@ def post():
     tmp(create=False)
 
 
+def need_compile(patch):
+    patch = list(whatthepatch.parse_patch(patch))
+    files = mergedb.get_files(patch)
+    exts = ('.c', '.cc', '.cpp', '.cxx', '.h', '.hxx',
+            '.hpp', '.hh', '.H', '.idl', '.ipdl', '.webidl')
+    return any(f.endswith(exts) for f in files)
+
+
 def compile_tree(root, rev, output, db):
     r = mach(root, ['build', 'pre-export'], check_exit=False)
     if r != 0:
@@ -137,14 +146,17 @@ def update(rev_start=None, rev_end=None, clobber=False, update=False):
             f = 'compilation_data_{}.json'.format(rev)
             output_file = os.path.join(output_dir, f)
         db = os.path.join(tmpdir, 'database_{}.sqlite'.format(rev))
-        data = compile_tree(root, rev, output_file, db)
-        if compile_data:
-            patch = client.export([str.encode(rev)])
-            patch = patch.decode('ascii')
-            compile_data, changes = mergedb.merge(patch, compile_data, data)
-            push_changes(rev, author, desc, changes)
-        else:
-            compile_data = data
+        patch = client.export([rev.encode('ascii')])
+        patch = patch.decode('ascii')
+        if need_compile(patch):
+            data = compile_tree(root, rev, output_file, db)
+            if compile_data:
+                compile_data, changes = mergedb.merge(patch,
+                                                      compile_data,
+                                                      data)
+                push_changes(rev, author, desc, changes)
+            else:
+                compile_data = data
 
     put_data_in_cache(compile_data)
     post()
@@ -160,7 +172,8 @@ def prepare(rev=None, parent=False):
             rev = parents[0][1]
             rev = rev.decode('ascii')
         else:
-            raise Exception('No parent for revision {} !'.format(rev))  # NOQA
+            e = 'No parent for revision {} !'.format(rev)
+            raise Exception(e)  # NOQA
 
     if rev:
         client.update(rev=rev)
